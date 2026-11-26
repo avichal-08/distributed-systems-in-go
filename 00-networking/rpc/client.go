@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"sync/atomic"
 	"time"
 
@@ -16,7 +17,7 @@ var ErrCorrelationMismatch = errors.New("rpc: response correlation id mismatch")
 
 type ClientOption func(*Client)
 
-func WithClientCodec(c Codec) ClientOption        { return func(cl *Client) { cl.codec = c } }
+func WithClientCodec(c Codec) ClientOption         { return func(cl *Client) { cl.codec = c } }
 func WithClientFramer(f frame.Framer) ClientOption { return func(cl *Client) { cl.framer = f } }
 
 type Client struct {
@@ -132,6 +133,10 @@ func (c *Client) Close() error          { return c.pool.Close() }
 func preferCtxErr(ctx context.Context, err error) error {
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return ctxErr
+	}
+	// netpoller deadline timer can fire microseconds before context's timer
+	if _, hasDeadline := ctx.Deadline(); hasDeadline && errors.Is(err, os.ErrDeadlineExceeded) {
+		return context.DeadlineExceeded
 	}
 	return err
 }
